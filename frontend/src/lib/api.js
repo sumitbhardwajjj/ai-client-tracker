@@ -5,6 +5,13 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Attach the logged-in user's session token to every request, if present.
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 // Normalize error messages so components can rely on err.message being
 // something readable, whether the failure came from the backend, a network
 // drop, or something else.
@@ -23,6 +30,11 @@ api.interceptors.response.use(
     return res
   },
   (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_user')
+      window.dispatchEvent(new Event('auth:expired'))
+    }
     const message =
       err.response?.data?.message ||
       (err.request && !err.response ? 'Cannot reach the server. Check your connection and try again.' : 'Something went wrong.')
@@ -30,6 +42,13 @@ api.interceptors.response.use(
     return Promise.reject(err)
   }
 )
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+export const login       = (email, password) => api.post('/auth/login', { email, password })
+export const getMe       = ()                => api.get('/auth/me')
+export const getUsers    = ()                => api.get('/users')
+export const createUser  = (data)            => api.post('/users', data)
+export const deleteUser  = (id)              => api.delete(`/users/${id}`)
 
 // ── Clients ──────────────────────────────────────────────────────────────────
 export const getClients    = ()       => api.get('/clients')

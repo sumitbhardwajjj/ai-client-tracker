@@ -1,19 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
 import MetricCard from '../components/MetricCard'
 import { getClients, bulkDeleteClients } from '../lib/api'
 import { computeClientStatus, computeInvoiceStatus, getCurrentInvoice } from '../lib/status'
-import { Search, UserPlus, Trash2 } from 'lucide-react'
+import { Search, UserPlus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const FILTERS = ['All', 'Active', 'Renewal', 'Overdue']
+const PAGE_SIZE = 25
 
 export default function Dashboard() {
   const [clients, setClients]   = useState([])
   const [filter, setFilter]     = useState('All')
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage]         = useState(1)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
@@ -25,17 +28,41 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const filtered = clients
-    .filter(c => filter === 'All' || computeClientStatus(c) === filter)
-    .filter(c => c.name.toLowerCase().includes(search.toLowerCase()) ||
-                 c.email?.toLowerCase().includes(search.toLowerCase()))
+  // Typing shouldn't re-filter/re-render the whole table on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
 
-  const total   = clients.length
-  const active  = clients.filter(c => computeClientStatus(c) === 'Active').length
-  const renewal = clients.filter(c => computeClientStatus(c) === 'Renewal').length
-  const overdue = clients.filter(c => computeClientStatus(c) === 'Overdue').length
+  useEffect(() => { setPage(1) }, [filter, debouncedSearch])
 
-  const allFilteredSelected = filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))
+  // Each client's status only needs computing once per data change, not
+  // once per filter check, once per metric count, and once per render.
+  const withStatus = useMemo(() => (
+    clients.map(c => ({
+      client: c,
+      status: computeClientStatus(c),
+      invoiceStatus: computeInvoiceStatus(c),
+    }))
+  ), [clients])
+
+  const total   = withStatus.length
+  const active  = withStatus.filter(c => c.status === 'Active').length
+  const renewal = withStatus.filter(c => c.status === 'Renewal').length
+  const overdue = withStatus.filter(c => c.status === 'Overdue').length
+
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase()
+    return withStatus.filter(({ client: c, status }) =>
+      (filter === 'All' || status === filter) &&
+      (c.name.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q))
+    )
+  }, [withStatus, filter, debouncedSearch])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every(({ client: c }) => selectedIds.has(c.id))
 
   const toggleOne = (id, e) => {
     e.stopPropagation()
@@ -51,11 +78,11 @@ export default function Dashboard() {
     setSelectedIds(prev => {
       if (allFilteredSelected) {
         const next = new Set(prev)
-        filtered.forEach(c => next.delete(c.id))
+        filtered.forEach(({ client: c }) => next.delete(c.id))
         return next
       }
       const next = new Set(prev)
-      filtered.forEach(c => next.add(c.id))
+      filtered.forEach(({ client: c }) => next.add(c.id))
       return next
     })
   }
@@ -185,7 +212,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(c => (
+              {pageItems.map(({ client: c, status, invoiceStatus }) => (
                 <tr key={c.id} onClick={() => navigate(`/client/${c.id}`)}>
                   <td>
                     <input type="checkbox" checked={selectedIds.has(c.id)} onChange={e => toggleOne(c.id, e)} onClick={e => e.stopPropagation()} />
@@ -207,9 +234,9 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </td>
-                  <td><StatusBadge status={computeClientStatus(c)} /></td>
+                  <td><StatusBadge status={status} /></td>
                   <td>{c.contract_end || getCurrentInvoice(c)?.period_end || '—'}</td>
-                  <td><StatusBadge status={computeInvoiceStatus(c)} /></td>
+                  <td><StatusBadge status={invoiceStatus} /></td>
                   <td style={{ color: 'var(--text-3)' }}>{c.last_contact || '—'}</td>
                   <td style={{ color: 'var(--text-1)', fontWeight: 500 }}>
                     {c.contract_value || getCurrentInvoice(c)?.amount || '—'}
@@ -219,6 +246,33 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+          </div>
+        )}
+
+        {!loading && filtered.length > PAGE_SIZE && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 20px', borderTop: '1px solid var(--border)',
+            fontSize: 12.5, color: 'var(--text-3)',
+          }}>
+            <span>
+              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 9px' }}
+                onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              >
+                <ChevronLeft size={13} />
+              </button>
+              <span>{page} / {totalPages}</span>
+              <button
+                className="btn btn-ghost" style={{ fontSize: 12, padding: '5px 9px' }}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              >
+                <ChevronRight size={13} />
+              </button>
+            </div>
           </div>
         )}
       </div>

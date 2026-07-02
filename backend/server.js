@@ -2,11 +2,13 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
 dotenv.config()
 
 // ── Startup env validation ──────────────────────────────────────────────────
-const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_KEY']
+const REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_KEY', 'JWT_SECRET']
 const missing = REQUIRED_ENV.filter(k => !process.env[k])
 if (missing.length) {
   console.error(`✗ Missing required environment variable(s): ${missing.join(', ')}`)
@@ -33,6 +35,114 @@ const INVOICE_STATUS_VALUES = ['Paid', 'Pending', 'Overdue']
 const EMAIL_RE = /\S+@\S+\.\S+/
 
 const asyncHandler = fn => (req, res, next) => fn(req, res, next).catch(next)
+
+// ── Auth ─────────────────────────────────────────────────────────────────
+const JWT_EXPIRY = '7d'
+
+function signToken(user) {
+  return jwt.sign({ sub: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRY })
+}
+
+function requireAuth(req, res, next) {
+  const header = req.headers.authorization || ''
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null
+  if (!token) return res.status(401).json({ message: 'Not authenticated' })
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET)
+    next()
+  } catch {
+    return res.status(401).json({ message: 'Session expired, please log in again' })
+  }
+}
+
+// Creates the first team account from env vars if no users exist yet — there's
+// no one logged in to create a user through the API on a brand new deploy.
+async function ensureAdminUser() {
+  const { count, error } = await supabase.from('users').select('id', { count: 'exact', head: true })
+  if (error) {
+    console.error('✗ Could not check users table — did you run the users table migration in Supabase?', error.message)
+    return
+  }
+  if (count > 0) return
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+    console.warn('⚠ No users exist yet and ADMIN_EMAIL/ADMIN_PASSWORD are not set — no one will be able to log in.')
+    return
+  }
+  const password_hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10)
+  const { error: insertError } = await supabase.from('users').insert([{
+    email: process.env.ADMIN_EMAIL.toLowerCase().trim(),
+    password_hash,
+    name: process.env.ADMIN_NAME || 'Admin',
+  }])
+  if (insertError) console.error('✗ Failed to create initial admin user:', insertError.message)
+  else console.log(`✓ Created initial admin user (${process.env.ADMIN_EMAIL})`)
+}
+
+app.post('/api/auth/login', asyncHandler(async (req, res) => {
+  const email = (req.body.email || '').toString().trim().toLowerCase()
+  const password = (req.body.password || '').toString()
+  if (!email || !password) return res.status(422).json({ message: 'Email and password are required' })
+
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, email, name, password_hash')
+    .ilike('email', email)
+    .maybeSingle()
+  if (error || !user) return res.status(401).json({ message: 'Invalid email or password' })
+
+  const ok = await bcrypt.compare(password, user.password_hash)
+  if (!ok) return res.status(401).json({ message: 'Invalid email or password' })
+
+  const token = signToken(user)
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name } })
+}))
+
+app.get('/api/auth/me', requireAuth, asyncHandler(async (req, res) => {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, email, name')
+    .eq('id', req.user.sub)
+    .maybeSingle()
+  if (error || !user) return res.status(401).json({ message: 'Not authenticated' })
+  res.json(user)
+}))
+
+// ── Team management (add/remove teammate accounts) ─────────────────────────
+app.get('/api/users', requireAuth, asyncHandler(async (req, res) => {
+  const { data, error } = await supabase.from('users').select('id, email, name, created_at').order('created_at')
+  if (error) return res.status(500).json({ message: error.message })
+  res.json(data)
+}))
+
+app.post('/api/users', requireAuth, asyncHandler(async (req, res) => {
+  const email = (req.body.email || '').toString().trim().toLowerCase()
+  const password = (req.body.password || '').toString()
+  const name = (req.body.name || '').toString().trim()
+  if (!email || !EMAIL_RE.test(email)) return res.status(422).json({ message: 'A valid email is required' })
+  if (!password || password.length < 8) return res.status(422).json({ message: 'Password must be at least 8 characters' })
+
+  const { data: existing } = await supabase.from('users').select('id').ilike('email', email).maybeSingle()
+  if (existing) return res.status(409).json({ message: 'A user with this email already exists' })
+
+  const password_hash = await bcrypt.hash(password, 10)
+  const { data, error } = await supabase
+    .from('users')
+    .insert([{ email, password_hash, name: name || email.split('@')[0] }])
+    .select('id, email, name, created_at')
+    .single()
+  if (error) return res.status(400).json({ message: error.message })
+  res.status(201).json(data)
+}))
+
+app.delete('/api/users/:id', requireAuth, asyncHandler(async (req, res) => {
+  const { count } = await supabase.from('users').select('id', { count: 'exact', head: true })
+  if (count <= 1) return res.status(409).json({ message: 'Cannot remove the last remaining account' })
+  if (req.params.id === req.user.sub) return res.status(409).json({ message: "You can't remove your own account while logged in" })
+
+  const { error } = await supabase.from('users').delete().eq('id', req.params.id)
+  if (error) return res.status(500).json({ message: error.message })
+  res.json({ message: 'Removed' })
+}))
 
 function validateClientPayload(body, { partial = false } = {}) {
   const errors = []
@@ -78,14 +188,19 @@ function validateClientPayload(body, { partial = false } = {}) {
 // ── Health check (used by Render) ──────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }))
 
-// GET all clients
+// Everything under /api/clients requires a logged-in session
+app.use('/api/clients', requireAuth)
+
+// GET all clients (list view — history log omitted here since it's only
+// needed on the detail page, and can grow large over time)
 app.get('/api/clients', asyncHandler(async (req, res) => {
   const { data, error } = await supabase
     .from('clients')
     .select('*')
     .order('created_at', { ascending: false })
   if (error) return res.status(500).json({ message: error.message })
-  res.json(data)
+  const trimmed = (data || []).map(({ history, ...rest }) => rest)
+  res.json(trimmed)
 }))
 
 // GET single client
@@ -419,6 +534,7 @@ app.use((err, req, res, next) => {
 })
 
 const PORT = process.env.PORT || 5000
+await ensureAdminUser()
 app.listen(PORT, () =>
   console.log(`✓ Server running on port ${PORT} with Supabase`)
 )

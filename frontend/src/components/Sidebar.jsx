@@ -1,16 +1,24 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
-import { LayoutDashboard, UserPlus, Sparkles, Sun, Moon, X } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { LayoutDashboard, UserPlus, Sparkles, Sun, Moon, X, Users, LogOut } from 'lucide-react'
 
 const links = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard'   },
   { to: '/add-client',  icon: UserPlus,        label: 'Add Client'  },
   { to: '/chat',        icon: Sparkles,        label: 'AI Assistant'},
+  { to: '/team',        icon: Users,           label: 'Team'        },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
+  const { user, logout } = useAuth()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
 
   return (
     <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
@@ -109,17 +117,37 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Bottom user badge */}
       <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--blue), var(--purple))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 600, color: '#fff',
-          }}>SB</div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)' }}>Sumit Bhardwaj</div>
-            <div style={{ fontSize: 11, color: 'var(--text-3)' }}>Frontend Dev</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, var(--blue), var(--purple))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 600, color: '#fff',
+            }}>
+              {(user?.name || user?.email || '?').slice(0, 2).toUpperCase()}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user?.name || user?.email}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user?.email}
+              </div>
+            </div>
           </div>
+          <button
+            onClick={handleLogout}
+            aria-label="Log out"
+            title="Log out"
+            style={{
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 8, width: 30, height: 30, cursor: 'pointer', flexShrink: 0,
+              color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <LogOut size={14} />
+          </button>
         </div>
       </div>
     </aside>
