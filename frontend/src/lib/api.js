@@ -9,7 +9,19 @@ const api = axios.create({
 // something readable, whether the failure came from the backend, a network
 // drop, or something else.
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // If VITE_API_BASE_URL is misconfigured, requests can land on the
+    // frontend's own SPA rewrite rule and come back as index.html with a
+    // 200 status instead of a real API error. Treat that as a failure.
+    const contentType = res.headers?.['content-type'] || ''
+    if (contentType.includes('text/html')) {
+      return Promise.reject({
+        message: 'Received an HTML page instead of API data — check VITE_API_BASE_URL.',
+        response: res,
+      })
+    }
+    return res
+  },
   (err) => {
     const message =
       err.response?.data?.message ||

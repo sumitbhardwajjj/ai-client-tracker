@@ -15,7 +15,7 @@ export function useChat() {
     setLoading(true)
 
     try {
-      // Fetch live client data from MongoDB
+      // Fetch live client data from Supabase
       const { data } = await getClients()
       const clientContext = JSON.stringify(
         data.map(c => ({

@@ -17,7 +17,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     getClients()
-      .then(r => setClients(r.data))
+      .then(r => setClients(Array.isArray(r.data) ? r.data : []))
       .catch(() => setClients([]))
       .finally(() => setLoading(false))
   }, [])
