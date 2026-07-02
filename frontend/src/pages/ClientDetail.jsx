@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
-import { getClient, addContactLog, deleteClient, updateClient, addInvoice, markInvoicePaid } from '../lib/api'
+import { getClient, addContactLog, deleteClient, updateClient, addInvoice, updateInvoice, markInvoicePaid } from '../lib/api'
 import { computeContractStatus, computeInvoiceStatus, daysUntilContractEnd } from '../lib/status'
 import { ArrowLeft, Pencil, Trash2, Send, CheckCircle2 } from 'lucide-react'
 
@@ -48,6 +48,12 @@ export default function ClientDetail() {
   const [periodForm, setPeriodForm] = useState({ period_start: '', period_end: '', amount: '', paid: false })
   const [periodSaving, setPeriodSaving] = useState(false)
   const [periodError, setPeriodError] = useState('')
+
+  // Editing an existing (pending) invoice period's dates/amount
+  const [editingInvoiceId, setEditingInvoiceId] = useState(null)
+  const [invoiceEditForm, setInvoiceEditForm] = useState({ period_start: '', period_end: '', amount: '' })
+  const [invoiceEditSaving, setInvoiceEditSaving] = useState(false)
+  const [invoiceEditError, setInvoiceEditError] = useState('')
 
   useEffect(() => {
     getClient(id)
@@ -114,6 +120,39 @@ export default function ClientDetail() {
       setC(data)
     } finally {
       setMarkingId(null)
+    }
+  }
+
+  const startEditingInvoice = (inv) => {
+    setEditingInvoiceId(inv.id)
+    setInvoiceEditForm({
+      period_start: inv.period_start || '',
+      period_end: inv.period_end || '',
+      amount: inv.amount || '',
+    })
+    setInvoiceEditError('')
+  }
+
+  const cancelEditingInvoice = () => {
+    setEditingInvoiceId(null)
+    setInvoiceEditError('')
+  }
+
+  const saveInvoiceEdit = async (invoiceId) => {
+    if (!invoiceEditForm.period_start || !invoiceEditForm.period_end) {
+      setInvoiceEditError('Start and end dates are required')
+      return
+    }
+    setInvoiceEditSaving(true)
+    setInvoiceEditError('')
+    try {
+      const { data } = await updateInvoice(id, invoiceId, invoiceEditForm)
+      setC(data)
+      setEditingInvoiceId(null)
+    } catch (err) {
+      setInvoiceEditError(err.response?.data?.message || 'Failed to save changes')
+    } finally {
+      setInvoiceEditSaving(false)
     }
   }
 
@@ -432,32 +471,79 @@ export default function ClientDetail() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {invoices.map(inv => (
                     <div key={inv.id} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      gap: 10, padding: '10px 12px', borderRadius: 8,
-                      background: 'var(--bg-3)', border: '1px solid var(--border)', flexWrap: 'wrap',
+                      padding: '10px 12px', borderRadius: 8,
+                      background: 'var(--bg-3)', border: '1px solid var(--border)',
                     }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)' }}>
-                          {inv.period_start} → {inv.period_end}
+                      {editingInvoiceId === inv.id ? (
+                        <div>
+                          {invoiceEditError && (
+                            <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 8 }}>{invoiceEditError}</div>
+                          )}
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1, minWidth: 130 }}>
+                              <EditField label="Period start" type="date" value={invoiceEditForm.period_start} onChange={e => setInvoiceEditForm(p => ({ ...p, period_start: e.target.value }))} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 130 }}>
+                              <EditField label="Period end" type="date" value={invoiceEditForm.period_end} onChange={e => setInvoiceEditForm(p => ({ ...p, period_end: e.target.value }))} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 130 }}>
+                              <EditField label="Amount" value={invoiceEditForm.amount} onChange={e => setInvoiceEditForm(p => ({ ...p, amount: e.target.value }))} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                            <button
+                              className="btn btn-primary"
+                              style={{ fontSize: 12, padding: '6px 12px' }}
+                              onClick={() => saveInvoiceEdit(inv.id)}
+                              disabled={invoiceEditSaving}
+                            >
+                              {invoiceEditSaving ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              className="btn btn-ghost"
+                              style={{ fontSize: 12, padding: '6px 12px' }}
+                              onClick={cancelEditingInvoice}
+                              disabled={invoiceEditSaving}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
-                          {inv.amount || '—'}
-                          {inv.paid_at && <> · paid {new Date(inv.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</>}
-                        </div>
-                      </div>
-                      {inv.status === 'Paid' ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--green)' }}>
-                          <CheckCircle2 size={13} /> Paid
-                        </span>
                       ) : (
-                        <button
-                          className="btn btn-primary"
-                          style={{ fontSize: 12, padding: '6px 12px' }}
-                          onClick={() => handleMarkPaid(inv.id)}
-                          disabled={markingId === inv.id}
-                        >
-                          {markingId === inv.id ? '…' : 'Mark Paid'}
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)' }}>
+                              {inv.period_start} → {inv.period_end}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
+                              {inv.amount || '—'}
+                              {inv.paid_at && <> · paid {new Date(inv.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</>}
+                            </div>
+                          </div>
+                          {inv.status === 'Paid' ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--green)' }}>
+                              <CheckCircle2 size={13} /> Paid
+                            </span>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                className="btn btn-ghost"
+                                style={{ fontSize: 12, padding: '6px 10px' }}
+                                onClick={() => startEditingInvoice(inv)}
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                className="btn btn-primary"
+                                style={{ fontSize: 12, padding: '6px 12px' }}
+                                onClick={() => handleMarkPaid(inv.id)}
+                                disabled={markingId === inv.id}
+                              >
+                                {markingId === inv.id ? '…' : 'Mark Paid'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}

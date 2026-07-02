@@ -25,6 +25,24 @@ export function computeContractStatus(client) {
   return 'Active'
 }
 
+// Overall client status shown on the dashboard (metric cards, filters, badge).
+// computeContractStatus() only looks at contract_end, which monthly-billing
+// clients don't have — so on its own it can never flag a monthly client as
+// Overdue, even with a genuinely overdue unpaid invoice. This wraps it so
+// monthly clients are judged by their current invoice instead. (Monthly
+// billing has no natural "Renewal" moment the way an annual contract does,
+// so monthly clients only resolve to Active or Overdue here.)
+export function computeClientStatus(client) {
+  if (client?.billing_cycle === 'monthly') {
+    const inv = getCurrentInvoice(client)
+    if (!inv || inv.status === 'Paid') return 'Active'
+    const days = daysFromToday(inv.period_end)
+    if (days !== null && days < 0) return 'Overdue'
+    return 'Active'
+  }
+  return computeContractStatus(client)
+}
+
 // ── Monthly billing (recurring invoice periods) ────────────────────────────
 // A client on billing_cycle: 'monthly' has an `invoices` array, each entry:
 // { id, period_start, period_end, amount, status: 'Pending'|'Paid', paid_at }

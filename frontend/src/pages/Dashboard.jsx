@@ -4,7 +4,7 @@ import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
 import MetricCard from '../components/MetricCard'
 import { getClients } from '../lib/api'
-import { computeContractStatus, computeInvoiceStatus, getCurrentInvoice } from '../lib/status'
+import { computeClientStatus, computeInvoiceStatus, getCurrentInvoice } from '../lib/status'
 import { Search, UserPlus } from 'lucide-react'
 
 const FILTERS = ['All', 'Active', 'Renewal', 'Overdue']
@@ -24,14 +24,14 @@ export default function Dashboard() {
   }, [])
 
   const filtered = clients
-    .filter(c => filter === 'All' || computeContractStatus(c) === filter)
+    .filter(c => filter === 'All' || computeClientStatus(c) === filter)
     .filter(c => c.name.toLowerCase().includes(search.toLowerCase()) ||
                  c.email?.toLowerCase().includes(search.toLowerCase()))
 
   const total   = clients.length
-  const active  = clients.filter(c => computeContractStatus(c) === 'Active').length
-  const renewal = clients.filter(c => computeContractStatus(c) === 'Renewal').length
-  const overdue = clients.filter(c => computeContractStatus(c) === 'Overdue').length
+  const active  = clients.filter(c => computeClientStatus(c) === 'Active').length
+  const renewal = clients.filter(c => computeClientStatus(c) === 'Renewal').length
+  const overdue = clients.filter(c => computeClientStatus(c) === 'Overdue').length
 
   return (
     <Layout
@@ -135,7 +135,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </td>
-                  <td><StatusBadge status={computeContractStatus(c)} /></td>
+                  <td><StatusBadge status={computeClientStatus(c)} /></td>
                   <td>{c.contract_end || getCurrentInvoice(c)?.period_end || '—'}</td>
                   <td><StatusBadge status={computeInvoiceStatus(c)} /></td>
                   <td style={{ color: 'var(--text-3)' }}>{c.last_contact || '—'}</td>

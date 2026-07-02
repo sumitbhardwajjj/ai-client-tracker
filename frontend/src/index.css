@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
   --bg:        #06080F;
@@ -24,10 +24,8 @@
   --text-2:    #94A3B8;
   --text-3:    #475569;
   --badge-blue-text: #7AA7FF;
-
-  /* Fonts */
-  --font-head: "Inter", sans-serif;
-  --font-body: "Inter", sans-serif;
+  --font-head: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
 
   /* Tells the browser to render native controls (date picker icon, select
      arrows, scrollbars in some browsers) using dark-mode-appropriate colors.
