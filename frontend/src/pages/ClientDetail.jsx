@@ -331,15 +331,18 @@ export default function ClientDetail() {
                   { label: 'Invoice amount',  value: c.invoice_amount  },
                   { label: 'Projects done',   value: c.projects_done   },
                   { label: 'Notes',           value: c.notes          },
-                ].map(({ label, value }) => value && (
-                  <div key={label} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '10px 0', borderBottom: '1px solid var(--border)', gap: 12, flexWrap: 'wrap',
-                  }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)', textAlign: 'right' }}>{value}</span>
-                  </div>
-                ))}
+                ].map(({ label, value }) => {
+                  const hasValue = value !== undefined && value !== null && value !== ''
+                  return hasValue && (
+                    <div key={label} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '10px 0', borderBottom: '1px solid var(--border)', gap: 12, flexWrap: 'wrap',
+                    }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-1)', textAlign: 'right' }}>{value}</span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
