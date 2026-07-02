@@ -21,7 +21,6 @@ services:
   - type: web
     name: ai-client-tracker-frontend
     runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
