@@ -277,6 +277,46 @@ app.post('/api/clients/:id/invoices', asyncHandler(async (req, res) => {
   res.status(201).json(data)
 }))
 
+// PATCH edit a billing period's dates/amount. Only pending (unpaid) periods
+// can be edited — once a period is marked Paid it's a historical record.
+app.patch('/api/clients/:id/invoices/:invoiceId', asyncHandler(async (req, res) => {
+  const { period_start, period_end, amount } = req.body
+
+  const { data: client, error: fetchError } = await supabase
+    .from('clients')
+    .select('invoices')
+    .eq('id', req.params.id)
+    .single()
+  if (fetchError) return res.status(404).json({ message: 'Not found' })
+
+  const invoices = client.invoices || []
+  const idx = invoices.findIndex(i => i.id === req.params.invoiceId)
+  if (idx === -1) return res.status(404).json({ message: 'Invoice period not found' })
+  if (invoices[idx].status === 'Paid') return res.status(409).json({ message: 'Cannot edit a period that is already marked paid' })
+
+  const nextStart = period_start || invoices[idx].period_start
+  const nextEnd = period_end || invoices[idx].period_end
+  if (new Date(nextEnd) < new Date(nextStart)) {
+    return res.status(422).json({ message: 'Period end cannot be before period start' })
+  }
+
+  invoices[idx] = {
+    ...invoices[idx],
+    period_start: nextStart,
+    period_end: nextEnd,
+    amount: amount !== undefined ? amount : invoices[idx].amount,
+  }
+
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ invoices })
+    .eq('id', req.params.id)
+    .select()
+    .single()
+  if (error) return res.status(400).json({ message: error.message })
+  res.json(data)
+}))
+
 // POST mark a billing period as Paid — automatically generates the next period.
 app.post('/api/clients/:id/invoices/:invoiceId/mark-paid', asyncHandler(async (req, res) => {
   const { data: client, error: fetchError } = await supabase
