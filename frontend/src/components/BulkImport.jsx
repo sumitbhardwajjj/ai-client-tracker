@@ -62,11 +62,8 @@ function validateRow(row) {
   if (!email) errors.push('Missing email')
   else if (!EMAIL_RE.test(email)) errors.push('Invalid email')
 
-  let status = (row.status || 'Active').toString().trim()
-  if (status && !STATUS_VALUES.includes(status)) status = 'Active'
-
-  let invoiceStatus = (row.invoice_status || 'Paid').toString().trim()
-  if (invoiceStatus && !INVOICE_STATUS_VALUES.includes(invoiceStatus)) invoiceStatus = 'Paid'
+  let invoiceStatus = (row.invoice_status || 'Pending').toString().trim()
+  if (invoiceStatus !== 'Paid') invoiceStatus = 'Pending'
 
   return {
     errors,
@@ -75,7 +72,6 @@ function validateRow(row) {
       email,
       contact: (row.contact || '').toString().trim(),
       phone: (row.phone || '').toString().trim(),
-      status,
       contract_end: (row.contract_end || '').toString().trim(),
       contract_value: (row.contract_value || '').toString().trim(),
       invoice_status: invoiceStatus,
@@ -88,8 +84,8 @@ function validateRow(row) {
 }
 
 const SAMPLE_CSV =
-  'name,email,contact,phone,status,contract_end,contract_value,invoice_status,invoice_amount,notes\n' +
-  'Acme Corp,billing@acme.com,John Smith,+91 98765 43210,Active,2026-12-31,"₹80,000/yr",Paid,"₹0",Long-term client\n'
+  'name,email,contact,phone,contract_end,contract_value,invoice_status,invoice_amount,notes\n' +
+  'Acme Corp,billing@acme.com,John Smith,+91 98765 43210,2026-12-31,"₹80,000/yr",Paid,"₹0",Long-term client\n'
 
 function downloadSampleCSV() {
   const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8;' })

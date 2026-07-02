@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
 import { getClient, addContactLog, deleteClient, updateClient } from '../lib/api'
+import { computeContractStatus, computeInvoiceStatus, daysUntilContractEnd } from '../lib/status'
 import { ArrowLeft, Pencil, Trash2, Send } from 'lucide-react'
 
 const COLOR_OPTIONS = [
@@ -79,7 +80,6 @@ export default function ClientDetail() {
       contact: c.contact || '',
       email: c.email || '',
       phone: c.phone || '',
-      status: c.status || 'Active',
       contract_end: c.contract_end || '',
       contract_value: c.contract_value || '',
       invoice_status: c.invoice_status || 'Paid',
@@ -152,28 +152,27 @@ export default function ClientDetail() {
             </div>
           )}
 
+          <div style={{
+            fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14,
+            background: 'var(--bg-3)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '10px 12px',
+          }}>
+            Client status (Active / Renewal / Overdue) is calculated automatically from the contract end date — no need to set it by hand. Mark an invoice "Paid" once you've received payment; it becomes "Overdue" on its own once the contract end date passes unpaid.
+          </div>
+
           <div className="form-grid">
             <EditField label="Company name" value={editForm.name} onChange={e => setField('name', e.target.value)} />
             <EditField label="Contact person" value={editForm.contact} onChange={e => setField('contact', e.target.value)} />
             <EditField label="Email" type="email" value={editForm.email} onChange={e => setField('email', e.target.value)} />
             <EditField label="Phone" value={editForm.phone} onChange={e => setField('phone', e.target.value)} />
 
-            <EditField label="Status">
-              <select className="input" value={editForm.status} onChange={e => setField('status', e.target.value)}>
-                <option value="Active">Active</option>
-                <option value="Renewal">Renewal due</option>
-                <option value="Overdue">Overdue</option>
-              </select>
-            </EditField>
-
             <EditField label="Contract value" placeholder="₹80,000/yr" value={editForm.contract_value} onChange={e => setField('contract_value', e.target.value)} />
             <EditField label="Contract end date" type="date" value={editForm.contract_end} onChange={e => setField('contract_end', e.target.value)} />
 
             <EditField label="Invoice status">
               <select className="input" value={editForm.invoice_status} onChange={e => setField('invoice_status', e.target.value)}>
-                <option value="Paid">Paid</option>
                 <option value="Pending">Pending</option>
-                <option value="Overdue">Overdue</option>
+                <option value="Paid">Paid</option>
               </select>
             </EditField>
 
@@ -241,7 +240,7 @@ export default function ClientDetail() {
                 <h2 style={{ fontFamily: 'var(--font-head)', fontSize: 20, fontWeight: 700, color: 'var(--text-1)' }}>
                   {c.name}
                 </h2>
-                <StatusBadge status={c.status} />
+                <StatusBadge status={computeContractStatus(c)} />
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 4 }}>
                 {c.contact && <span>{c.contact} · </span>}
@@ -260,7 +259,18 @@ export default function ClientDetail() {
           {/* Stats row */}
           <div className="stats-grid" style={{ marginBottom: 16 }}>
             {[
-              { label: 'Contract ends',   value: c.contract_end  || '—', color: 'var(--text-1)' },
+              {
+                label: 'Contract ends',
+                value: c.contract_end || '—',
+                sub: (() => {
+                  const d = daysUntilContractEnd(c)
+                  if (d === null) return null
+                  if (d < 0) return `${Math.abs(d)} day${Math.abs(d) === 1 ? '' : 's'} overdue`
+                  if (d === 0) return 'Today'
+                  return `in ${d} day${d === 1 ? '' : 's'}`
+                })(),
+                color: computeContractStatus(c) === 'Overdue' ? 'var(--red)' : computeContractStatus(c) === 'Renewal' ? 'var(--amber)' : 'var(--text-1)',
+              },
               { label: 'Pending invoice', value: c.invoice_amount || '—', color: 'var(--amber)' },
               { label: 'Last contacted',  value: c.last_contact  || '—', color: 'var(--red)'   },
               { label: 'Projects done',   value: c.projects_done || 0,    color: 'var(--green)' },
@@ -268,6 +278,7 @@ export default function ClientDetail() {
               <div key={s.label} className="card fade-up" style={{ padding: '14px 16px' }}>
                 <div style={{ fontSize: 17, fontWeight: 600, fontFamily: 'var(--font-head)', color: s.color }}>{s.value}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3, textTransform: 'uppercase', letterSpacing: '.04em' }}>{s.label}</div>
+                {s.sub && <div style={{ fontSize: 11, color: s.color, marginTop: 4 }}>{s.sub}</div>}
               </div>
             ))}
           </div>
@@ -327,7 +338,7 @@ export default function ClientDetail() {
                 {[
                   { label: 'Contract value',  value: c.contract_value  },
                   { label: 'Contract ends',   value: c.contract_end    },
-                  { label: 'Invoice status',  value: <StatusBadge status={c.invoice_status} /> },
+                  { label: 'Invoice status',  value: <StatusBadge status={computeInvoiceStatus(c)} /> },
                   { label: 'Invoice amount',  value: c.invoice_amount  },
                   { label: 'Projects done',   value: c.projects_done   },
                   { label: 'Notes',           value: c.notes          },

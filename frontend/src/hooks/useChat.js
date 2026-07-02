@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getClients } from '../lib/api'
+import { computeContractStatus, computeInvoiceStatus, daysUntilContractEnd } from '../lib/status'
 
 export function useChat() {
   const [messages, setMessages] = useState([{
@@ -20,10 +21,11 @@ export function useChat() {
       const clientContext = JSON.stringify(
         data.map(c => ({
           name: c.name,
-          status: c.status,
+          status: computeContractStatus(c),           // auto-computed from contract end date
+          daysUntilContractEnd: daysUntilContractEnd(c),
           contractEnd: c.contract_end,
           contractValue: c.contract_value,
-          invoiceStatus: c.invoice_status,
+          invoiceStatus: computeInvoiceStatus(c),      // auto-computed; Overdue once past due and unpaid
           invoiceAmount: c.invoice_amount,
           lastContact: c.last_contact,
           projectsDone: c.projects_done,

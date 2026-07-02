@@ -19,10 +19,9 @@ const INITIAL = {
   email: '',
   phone: '',
   contact: '',
-  status: 'Active',
   contractEnd: '',
   contractValue: '',
-  invoiceStatus: 'Paid',
+  invoiceStatus: 'Pending',
   invoiceAmount: '',
   color: '#3B6FF5',
   notes: '',
@@ -148,7 +147,6 @@ export default function AddClient() {
         contact: form.contact,
         email: form.email,
         phone: form.phone,
-        status: form.status,
         contract_end: form.contractEnd,
         contract_value: form.contractValue,
         invoice_status: form.invoiceStatus,
@@ -358,25 +356,21 @@ export default function AddClient() {
                 fontSize: 15,
                 fontWeight: 600,
                 color: 'var(--text-1)',
-                marginBottom: 18,
+                marginBottom: 10,
               }}
             >
               Contract Details
             </h3>
 
-            <div className="form-grid">
-              <Field label="Status" name="status">
-                <select
-                  className="input"
-                  value={form.status}
-                  onChange={(e) => set('status', e.target.value)}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Renewal">Renewal due</option>
-                  <option value="Overdue">Overdue</option>
-                </select>
-              </Field>
+            <div style={{
+              fontSize: 12.5, color: 'var(--text-3)', marginBottom: 16,
+              background: 'var(--bg-3)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '10px 12px',
+            }}>
+              Client status (Active / Renewal / Overdue) is calculated automatically from the contract end date below — no need to set it by hand.
+            </div>
 
+            <div className="form-grid">
               <Field
                 label="Contract value"
                 name="contractValue"
@@ -406,9 +400,8 @@ export default function AddClient() {
                     set('invoiceStatus', e.target.value)
                   }
                 >
-                  <option value="Paid">Paid</option>
                   <option value="Pending">Pending</option>
-                  <option value="Overdue">Overdue</option>
+                  <option value="Paid">Paid</option>
                 </select>
               </Field>
 
