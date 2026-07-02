@@ -4,7 +4,7 @@ import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
 import MetricCard from '../components/MetricCard'
 import { getClients } from '../lib/api'
-import { computeContractStatus, computeInvoiceStatus } from '../lib/status'
+import { computeContractStatus, computeInvoiceStatus, getCurrentInvoice } from '../lib/status'
 import { Search, UserPlus } from 'lucide-react'
 
 const FILTERS = ['All', 'Active', 'Renewal', 'Overdue']
@@ -136,10 +136,13 @@ export default function Dashboard() {
                     </div>
                   </td>
                   <td><StatusBadge status={computeContractStatus(c)} /></td>
-                  <td>{c.contract_end || '—'}</td>
+                  <td>{c.contract_end || getCurrentInvoice(c)?.period_end || '—'}</td>
                   <td><StatusBadge status={computeInvoiceStatus(c)} /></td>
                   <td style={{ color: 'var(--text-3)' }}>{c.last_contact || '—'}</td>
-                  <td style={{ color: 'var(--text-1)', fontWeight: 500 }}>{c.contract_value || '—'}</td>
+                  <td style={{ color: 'var(--text-1)', fontWeight: 500 }}>
+                    {c.contract_value || getCurrentInvoice(c)?.amount || '—'}
+                    {c.billing_cycle === 'monthly' && <span style={{ fontSize: 10, color: 'var(--text-3)' }}> /mo</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

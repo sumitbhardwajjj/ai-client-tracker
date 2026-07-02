@@ -2,28 +2,23 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import BulkImport from '../components/BulkImport'
-import { createClient } from '../lib/api'
+import { createClient, addInvoice } from '../lib/api'
 import { UserPlus, Upload, CheckCircle2 } from 'lucide-react'
-
-const COLOR_OPTIONS = [
-  { label: 'Blue', value: '#3B6FF5' },
-  { label: 'Green', value: '#10B981' },
-  { label: 'Amber', value: '#F59E0B' },
-  { label: 'Red', value: '#EF4444' },
-  { label: 'Purple', value: '#8B5CF6' },
-  { label: 'Cyan', value: '#06B6D4' },
-]
 
 const INITIAL = {
   name: '',
   email: '',
   phone: '',
   contact: '',
+  billingCycle: 'annual', // 'annual' | 'monthly'
   contractEnd: '',
   contractValue: '',
   invoiceStatus: 'Pending',
   invoiceAmount: '',
-  color: '#3B6FF5',
+  periodStart: '',
+  periodEnd: '',
+  periodAmount: '',
+  periodPaid: false,
   notes: '',
 }
 
@@ -119,6 +114,14 @@ export default function AddClient() {
       e.email = 'Invalid email'
     }
 
+    if (form.billingCycle === 'monthly') {
+      if (!form.periodStart) e.periodStart = 'Start date is required'
+      if (!form.periodEnd) e.periodEnd = 'End date is required'
+      if (form.periodStart && form.periodEnd && form.periodEnd < form.periodStart) {
+        e.periodEnd = 'End date must be after start date'
+      }
+    }
+
     return e
   }
 
@@ -136,7 +139,7 @@ export default function AddClient() {
     setSaving(true)
 
     try {
-      await createClient({
+      const { data: client } = await createClient({
         name: form.name,
         initials: form.name
           .split(' ')
@@ -147,13 +150,21 @@ export default function AddClient() {
         contact: form.contact,
         email: form.email,
         phone: form.phone,
-        contract_end: form.contractEnd,
-        contract_value: form.contractValue,
-        invoice_status: form.invoiceStatus,
-        invoice_amount: form.invoiceAmount,
-        color: form.color,
+        contract_end: form.billingCycle === 'annual' ? form.contractEnd : '',
+        contract_value: form.billingCycle === 'annual' ? form.contractValue : '',
+        invoice_status: form.billingCycle === 'annual' ? form.invoiceStatus : 'Pending',
+        invoice_amount: form.billingCycle === 'annual' ? form.invoiceAmount : '',
         notes: form.notes,
       })
+
+      if (form.billingCycle === 'monthly') {
+        await addInvoice(client.id, {
+          period_start: form.periodStart,
+          period_end: form.periodEnd,
+          amount: form.periodAmount,
+          status: form.periodPaid ? 'Paid' : 'Pending',
+        })
+      }
 
       setSuccess(true)
 
@@ -300,55 +311,9 @@ export default function AddClient() {
                 onChange={(e) => set('phone', e.target.value)}
               />
             </div>
-
-            <div
-              style={{
-                marginTop: 16,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6,
-              }}
-            >
-              <label
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--text-3)',
-                  letterSpacing: '.04em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Brand colour
-              </label>
-
-              <div style={{ display: 'flex', gap: 8 }}>
-                {COLOR_OPTIONS.map((opt) => (
-                  <div
-                    key={opt.value}
-                    title={opt.label}
-                    onClick={() => set('color', opt.value)}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      background: opt.value,
-                      cursor: 'pointer',
-                      border:
-                        form.color === opt.value
-                          ? '2px solid #fff'
-                          : '2px solid transparent',
-                      boxShadow:
-                        form.color === opt.value
-                          ? `0 0 10px ${opt.value}88`
-                          : 'none',
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
 
-          {/* Contract Details */}
+          {/* Billing */}
           <div className="card" style={{ marginBottom: 16 }}>
             <h3
               style={{
@@ -359,7 +324,7 @@ export default function AddClient() {
                 marginBottom: 10,
               }}
             >
-              Contract Details
+              Billing
             </h3>
 
             <div style={{
@@ -367,53 +332,108 @@ export default function AddClient() {
               background: 'var(--bg-3)', border: '1px solid var(--border)',
               borderRadius: 8, padding: '10px 12px',
             }}>
-              Client status (Active / Renewal / Overdue) is calculated automatically from the contract end date below — no need to set it by hand.
+              Client status (Active / Renewal / Overdue) is calculated automatically from the relevant date below — no need to set it by hand.
             </div>
 
-            <div className="form-grid">
-              <Field
-                label="Contract value"
-                name="contractValue"
-                placeholder="₹80,000/yr"
-                value={form.contractValue}
-                error={errors.contractValue}
-                onChange={(e) => set('contractValue', e.target.value)}
-              />
-
-              <Field
-                label="Contract end date"
-                name="contractEnd"
-                type="date"
-                value={form.contractEnd}
-                error={errors.contractEnd}
-                onChange={(e) => set('contractEnd', e.target.value)}
-              />
-
-              <Field
-                label="Invoice status"
-                name="invoiceStatus"
-              >
-                <select
-                  className="input"
-                  value={form.invoiceStatus}
-                  onChange={(e) =>
-                    set('invoiceStatus', e.target.value)
-                  }
+            {/* Billing cycle toggle */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 18, background: 'var(--bg-3)', padding: 4, borderRadius: 10, width: 'fit-content' }}>
+              {['annual', 'monthly'].map(cycle => (
+                <button
+                  key={cycle}
+                  type="button"
+                  onClick={() => set('billingCycle', cycle)}
+                  style={{
+                    padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                    fontSize: 12.5, fontWeight: 500, textTransform: 'capitalize', transition: 'all .15s',
+                    background: form.billingCycle === cycle ? 'var(--blue)' : 'transparent',
+                    color: form.billingCycle === cycle ? '#fff' : 'var(--text-2)',
+                  }}
                 >
-                  <option value="Pending">Pending</option>
-                  <option value="Paid">Paid</option>
-                </select>
-              </Field>
-
-              <Field
-                label="Invoice amount"
-                name="invoiceAmount"
-                placeholder="₹48,000"
-                value={form.invoiceAmount}
-                error={errors.invoiceAmount}
-                onChange={(e) => set('invoiceAmount', e.target.value)}
-              />
+                  {cycle}
+                </button>
+              ))}
             </div>
+
+            {form.billingCycle === 'annual' ? (
+              <div className="form-grid">
+                <Field
+                  label="Contract value"
+                  name="contractValue"
+                  placeholder="₹80,000/yr"
+                  value={form.contractValue}
+                  error={errors.contractValue}
+                  onChange={(e) => set('contractValue', e.target.value)}
+                />
+
+                <Field
+                  label="Contract end date"
+                  name="contractEnd"
+                  type="date"
+                  value={form.contractEnd}
+                  error={errors.contractEnd}
+                  onChange={(e) => set('contractEnd', e.target.value)}
+                />
+
+                <Field label="Invoice status" name="invoiceStatus">
+                  <select
+                    className="input"
+                    value={form.invoiceStatus}
+                    onChange={(e) => set('invoiceStatus', e.target.value)}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </Field>
+
+                <Field
+                  label="Invoice amount"
+                  name="invoiceAmount"
+                  placeholder="₹48,000"
+                  value={form.invoiceAmount}
+                  error={errors.invoiceAmount}
+                  onChange={(e) => set('invoiceAmount', e.target.value)}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="form-grid">
+                  <Field
+                    label="Billing period start"
+                    name="periodStart"
+                    type="date"
+                    value={form.periodStart}
+                    error={errors.periodStart}
+                    onChange={(e) => set('periodStart', e.target.value)}
+                  />
+                  <Field
+                    label="Billing period end"
+                    name="periodEnd"
+                    type="date"
+                    value={form.periodEnd}
+                    error={errors.periodEnd}
+                    onChange={(e) => set('periodEnd', e.target.value)}
+                  />
+                  <Field
+                    label="Amount per period"
+                    name="periodAmount"
+                    placeholder="₹15,000/mo"
+                    value={form.periodAmount}
+                    onChange={(e) => set('periodAmount', e.target.value)}
+                  />
+                </div>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginTop: 14,
+                  fontSize: 13, color: 'var(--text-2)', cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={form.periodPaid}
+                    onChange={(e) => set('periodPaid', e.target.checked)}
+                  />
+                  This period is already paid — start the next billing cycle automatically
+                </label>
+              </>
+            )}
           </div>
 
           {/* Notes */}

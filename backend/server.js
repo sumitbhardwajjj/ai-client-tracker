@@ -224,6 +224,96 @@ app.post('/api/clients/:id/contact', asyncHandler(async (req, res) => {
   res.json(data)
 }))
 
+// ── Monthly billing (recurring invoice periods, stored as JSONB on the client) ──
+function nextPeriod(periodEndStr) {
+  const end = new Date(periodEndStr)
+  const nextStart = new Date(end)
+  nextStart.setDate(nextStart.getDate() + 1)
+  const nextEnd = new Date(nextStart)
+  nextEnd.setMonth(nextEnd.getMonth() + 1)
+  nextEnd.setDate(nextEnd.getDate() - 1)
+  const fmt = d => d.toISOString().slice(0, 10)
+  return { period_start: fmt(nextStart), period_end: fmt(nextEnd) }
+}
+
+// POST create the first (or an additional) billing period for a client.
+// Switches the client onto monthly billing. If status is 'Paid', the next
+// period is generated immediately so billing keeps rolling forward.
+app.post('/api/clients/:id/invoices', asyncHandler(async (req, res) => {
+  const { period_start, period_end, amount } = req.body
+  const status = req.body.status === 'Paid' ? 'Paid' : 'Pending'
+  if (!period_start || !period_end) return res.status(422).json({ message: 'period_start and period_end are required' })
+
+  const { data: client, error: fetchError } = await supabase
+    .from('clients')
+    .select('invoices')
+    .eq('id', req.params.id)
+    .single()
+  if (fetchError) return res.status(404).json({ message: 'Not found' })
+
+  const invoice = {
+    id: crypto.randomUUID(),
+    period_start, period_end, amount: amount || '',
+    status,
+    paid_at: status === 'Paid' ? new Date().toISOString() : null,
+  }
+  let invoices = [...(client.invoices || []), invoice]
+
+  if (status === 'Paid') {
+    const { period_start: ns, period_end: ne } = nextPeriod(period_end)
+    invoices.push({
+      id: crypto.randomUUID(), period_start: ns, period_end: ne,
+      amount: amount || '', status: 'Pending', paid_at: null,
+    })
+  }
+
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ invoices, billing_cycle: 'monthly' })
+    .eq('id', req.params.id)
+    .select()
+    .single()
+  if (error) return res.status(400).json({ message: error.message })
+  res.status(201).json(data)
+}))
+
+// POST mark a billing period as Paid — automatically generates the next period.
+app.post('/api/clients/:id/invoices/:invoiceId/mark-paid', asyncHandler(async (req, res) => {
+  const { data: client, error: fetchError } = await supabase
+    .from('clients')
+    .select('invoices')
+    .eq('id', req.params.id)
+    .single()
+  if (fetchError) return res.status(404).json({ message: 'Not found' })
+
+  const invoices = client.invoices || []
+  const idx = invoices.findIndex(i => i.id === req.params.invoiceId)
+  if (idx === -1) return res.status(404).json({ message: 'Invoice period not found' })
+  if (invoices[idx].status === 'Paid') return res.status(409).json({ message: 'Already marked paid' })
+
+  invoices[idx] = { ...invoices[idx], status: 'Paid', paid_at: new Date().toISOString() }
+
+  const alreadyHasNext = invoices.some(i =>
+    new Date(i.period_start) > new Date(invoices[idx].period_end)
+  )
+  if (!alreadyHasNext) {
+    const { period_start: ns, period_end: ne } = nextPeriod(invoices[idx].period_end)
+    invoices.push({
+      id: crypto.randomUUID(), period_start: ns, period_end: ne,
+      amount: invoices[idx].amount, status: 'Pending', paid_at: null,
+    })
+  }
+
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ invoices })
+    .eq('id', req.params.id)
+    .select()
+    .single()
+  if (error) return res.status(400).json({ message: error.message })
+  res.json(data)
+}))
+
 // ── 404 + error handling ────────────────────────────────────────────────
 app.use('/api', (req, res) => res.status(404).json({ message: 'Not found' }))
 

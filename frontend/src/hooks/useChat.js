@@ -23,12 +23,13 @@ export function useChat() {
           name: c.name,
           status: computeContractStatus(c),           // auto-computed from contract end date
           daysUntilContractEnd: daysUntilContractEnd(c),
+          billingCycle: c.billing_cycle || 'annual',
           contractEnd: c.contract_end,
           contractValue: c.contract_value,
           invoiceStatus: computeInvoiceStatus(c),      // auto-computed; Overdue once past due and unpaid
           invoiceAmount: c.invoice_amount,
+          monthlyInvoices: c.billing_cycle === 'monthly' ? c.invoices : undefined,
           lastContact: c.last_contact,
-          projectsDone: c.projects_done,
           email: c.email,
         }))
       )

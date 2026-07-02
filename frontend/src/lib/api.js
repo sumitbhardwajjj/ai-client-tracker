@@ -39,5 +39,7 @@ export const bulkImportClients = (clients) => api.post('/clients/bulk', { client
 export const updateClient  = (id, d)  => api.put(`/clients/${id}`, d)
 export const deleteClient  = (id)     => api.delete(`/clients/${id}`)
 export const addContactLog = (id, note) => api.post(`/clients/${id}/contact`, { note })
+export const addInvoice    = (id, data) => api.post(`/clients/${id}/invoices`, data)
+export const markInvoicePaid = (id, invoiceId) => api.post(`/clients/${id}/invoices/${invoiceId}/mark-paid`)
 
 export default api
