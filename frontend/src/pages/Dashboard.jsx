@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import StatusBadge from '../components/StatusBadge'
 import MetricCard from '../components/MetricCard'
-import { getClients } from '../lib/api'
+import { getClients, bulkDeleteClients } from '../lib/api'
 import { computeClientStatus, computeInvoiceStatus, getCurrentInvoice } from '../lib/status'
-import { Search, UserPlus } from 'lucide-react'
+import { Search, UserPlus, Trash2 } from 'lucide-react'
 
 const FILTERS = ['All', 'Active', 'Renewal', 'Overdue']
 
@@ -14,6 +14,8 @@ export default function Dashboard() {
   const [filter, setFilter]     = useState('All')
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -33,6 +35,49 @@ export default function Dashboard() {
   const renewal = clients.filter(c => computeClientStatus(c) === 'Renewal').length
   const overdue = clients.filter(c => computeClientStatus(c) === 'Overdue').length
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))
+
+  const toggleOne = (id, e) => {
+    e.stopPropagation()
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    setSelectedIds(prev => {
+      if (allFilteredSelected) {
+        const next = new Set(prev)
+        filtered.forEach(c => next.delete(c.id))
+        return next
+      }
+      const next = new Set(prev)
+      filtered.forEach(c => next.add(c.id))
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const handleBulkDelete = async () => {
+    const count = selectedIds.size
+    if (!count) return
+    if (!confirm(`Delete ${count} client${count === 1 ? '' : 's'}? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      await bulkDeleteClients([...selectedIds])
+      setClients(prev => prev.filter(c => !selectedIds.has(c.id)))
+      clearSelection()
+    } catch (err) {
+      alert(err.message || 'Failed to delete selected clients')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <Layout
       title="Clients"
@@ -50,6 +95,27 @@ export default function Dashboard() {
         <MetricCard label="Renewal due"  value={renewal} icon="↻" color="var(--amber)"  sub="Action needed" />
         <MetricCard label="Overdue"      value={overdue} icon="!" color="var(--red)"    sub="Urgent follow-up" />
       </div>
+
+      {/* Bulk delete bar */}
+      {selectedIds.size > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', marginBottom: 12, borderRadius: 10,
+          background: 'var(--red-bg)', border: '1px solid rgba(239,68,68,.25)',
+        }}>
+          <span style={{ fontSize: 13.5, color: 'var(--text-1)' }}>
+            {selectedIds.size} client{selectedIds.size === 1 ? '' : 's'} selected
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost" style={{ fontSize: 12.5, padding: '6px 12px' }} onClick={clearSelection} disabled={deleting}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" style={{ fontSize: 12.5, padding: '6px 12px' }} onClick={handleBulkDelete} disabled={deleting}>
+              <Trash2 size={13} /> {deleting ? 'Deleting...' : 'Delete selected'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table card */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -107,6 +173,9 @@ export default function Dashboard() {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: 34 }}>
+                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleAll} onClick={e => e.stopPropagation()} />
+                </th>
                 <th>Client</th>
                 <th>Status</th>
                 <th>Contract ends</th>
@@ -118,6 +187,9 @@ export default function Dashboard() {
             <tbody>
               {filtered.map(c => (
                 <tr key={c.id} onClick={() => navigate(`/client/${c.id}`)}>
+                  <td>
+                    <input type="checkbox" checked={selectedIds.has(c.id)} onChange={e => toggleOne(c.id, e)} onClick={e => e.stopPropagation()} />
+                  </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{

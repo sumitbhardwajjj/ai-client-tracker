@@ -121,6 +121,27 @@ app.post('/api/clients', asyncHandler(async (req, res) => {
   res.status(201).json(data)
 }))
 
+// Builds the first invoice period (and, if pre-marked Paid, the following
+// period too) for a monthly-billing row coming from bulk import — mirrors
+// the logic in the single-client "start monthly billing" endpoint below.
+function buildMonthlyInvoices({ period_start, period_end, amount, status }) {
+  const cleanStatus = status === 'Paid' ? 'Paid' : 'Pending'
+  const invoices = [{
+    id: crypto.randomUUID(),
+    period_start, period_end, amount: amount || '',
+    status: cleanStatus,
+    paid_at: cleanStatus === 'Paid' ? new Date().toISOString() : null,
+  }]
+  if (cleanStatus === 'Paid') {
+    const { period_start: ns, period_end: ne } = nextPeriod(period_end)
+    invoices.push({
+      id: crypto.randomUUID(), period_start: ns, period_end: ne,
+      amount: amount || '', status: 'Pending', paid_at: null,
+    })
+  }
+  return invoices
+}
+
 // POST bulk import clients (CSV/Excel import from the frontend)
 app.post('/api/clients/bulk', asyncHandler(async (req, res) => {
   const rows = Array.isArray(req.body.clients) ? req.body.clients : []
@@ -137,6 +158,27 @@ app.post('/api/clients/bulk', asyncHandler(async (req, res) => {
   rows.forEach((row, i) => {
     const { errors, clean } = validateClientPayload(row)
     const emailLower = (clean.email || '').toLowerCase()
+
+    const isMonthly = (row.billing_cycle || '').toString().trim().toLowerCase() === 'monthly'
+    if (isMonthly) {
+      const period_start = (row.period_start || '').toString().trim()
+      const period_end = (row.period_end || '').toString().trim()
+      if (!period_start || !period_end) {
+        errors.push('period_start and period_end are required when billing_cycle is monthly')
+      } else if (new Date(period_end) < new Date(period_start)) {
+        errors.push('period_end cannot be before period_start')
+      } else {
+        clean.billing_cycle = 'monthly'
+        clean.invoices = buildMonthlyInvoices({
+          period_start, period_end,
+          amount: clean.invoice_amount,
+          status: clean.invoice_status,
+        })
+        // Monthly clients don't use contract_end/invoice_status the way
+        // annual ones do — status is derived from the invoices array instead.
+        delete clean.contract_end
+      }
+    }
 
     if (errors.length) {
       skipped.push({ row: i + 1, name: row.name, reason: errors.join('; ') })
@@ -194,6 +236,20 @@ app.delete('/api/clients/:id', asyncHandler(async (req, res) => {
     .eq('id', req.params.id)
   if (error) return res.status(500).json({ message: error.message })
   res.json({ message: 'Deleted' })
+}))
+
+// POST bulk delete clients (Dashboard multi-select delete)
+app.post('/api/clients/bulk-delete', asyncHandler(async (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids.filter(Boolean) : []
+  if (!ids.length) return res.status(422).json({ message: 'No client ids provided' })
+  if (ids.length > 1000) return res.status(422).json({ message: 'Max 1000 clients per bulk delete' })
+
+  const { error, count } = await supabase
+    .from('clients')
+    .delete({ count: 'exact' })
+    .in('id', ids)
+  if (error) return res.status(500).json({ message: error.message })
+  res.json({ deletedCount: count ?? ids.length })
 }))
 
 // POST log contact

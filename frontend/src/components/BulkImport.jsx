@@ -23,6 +23,9 @@ const HEADER_ALIASES = {
   invoice_status: ['invoicestatus', 'invoice status'],
   invoice_amount: ['invoiceamount', 'invoice amount'],
   notes: ['notes', 'note'],
+  billing_cycle: ['billingcycle', 'billing cycle'],
+  period_start: ['periodstart', 'period start', 'billingstart', 'billing start'],
+  period_end: ['periodend', 'period end', 'billingend', 'billing end'],
 }
 
 function normalizeHeader(h) {
@@ -65,6 +68,18 @@ function validateRow(row) {
   let invoiceStatus = (row.invoice_status || 'Pending').toString().trim()
   if (invoiceStatus !== 'Paid') invoiceStatus = 'Pending'
 
+  const billingCycle = (row.billing_cycle || '').toString().trim().toLowerCase() === 'monthly' ? 'monthly' : 'yearly'
+  const periodStart = (row.period_start || '').toString().trim()
+  const periodEnd = (row.period_end || '').toString().trim()
+
+  if (billingCycle === 'monthly') {
+    if (!periodStart) errors.push('Missing period_start')
+    if (!periodEnd) errors.push('Missing period_end')
+    if (periodStart && periodEnd && new Date(periodEnd) < new Date(periodStart)) {
+      errors.push('period_end is before period_start')
+    }
+  }
+
   return {
     errors,
     clean: {
@@ -79,13 +94,17 @@ function validateRow(row) {
       notes: (row.notes || '').toString().trim(),
       color: '#3B6FF5',
       initials: initialsFor(name),
+      billing_cycle: billingCycle === 'monthly' ? 'monthly' : undefined,
+      period_start: billingCycle === 'monthly' ? periodStart : undefined,
+      period_end: billingCycle === 'monthly' ? periodEnd : undefined,
     },
   }
 }
 
 const SAMPLE_CSV =
-  'name,email,contact,phone,contract_end,contract_value,invoice_status,invoice_amount,notes\n' +
-  'Acme Corp,billing@acme.com,John Smith,+91 98765 43210,2026-12-31,"₹80,000/yr",Paid,"₹0",Long-term client\n'
+  'name,email,contact,phone,contract_end,contract_value,invoice_status,invoice_amount,notes,billing_cycle,period_start,period_end\n' +
+  'Acme Corp,billing@acme.com,John Smith,+91 98765 43210,2026-12-31,"₹80,000/yr",Paid,"₹0",Long-term client,,,\n' +
+  'Nova Studio,billing@novastudio.com,Jane Doe,+91 98765 11223,,,Pending,"₹15,000",Monthly retainer client,monthly,2026-07-01,2026-07-31\n'
 
 function downloadSampleCSV() {
   const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8;' })
@@ -291,7 +310,7 @@ export default function BulkImport({ onDone }) {
             Drop a CSV or Excel file here, or click to browse
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-            Supports .csv, .xlsx, .xls — must include "name" and "email" columns
+            Supports .csv, .xlsx, .xls — must include "name" and "email" columns. Add billing_cycle=monthly with period_start/period_end for monthly-billing clients.
           </div>
         </div>
       )}
@@ -326,6 +345,7 @@ export default function BulkImport({ onDone }) {
                   <th style={{ width: 34 }}></th>
                   <th>Name</th>
                   <th>Email</th>
+                  <th>Billing</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -342,6 +362,9 @@ export default function BulkImport({ onDone }) {
                     </td>
                     <td style={{ color: 'var(--text-1)' }}>{r.clean.name || <em style={{ color: 'var(--text-3)' }}>—</em>}</td>
                     <td>{r.clean.email || <em style={{ color: 'var(--text-3)' }}>—</em>}</td>
+                    <td style={{ color: 'var(--text-3)', fontSize: 12.5 }}>
+                      {r.clean.billing_cycle === 'monthly' ? 'Monthly' : 'Yearly'}
+                    </td>
                     <td>
                       {r.errors.length > 0 ? (
                         <span style={{ color: 'var(--red)', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 4 }}>
