@@ -16,7 +16,7 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: NODE_VERSION
-        value: 20
+        value: 22
 
   - type: web
     name: ai-client-tracker-frontend
