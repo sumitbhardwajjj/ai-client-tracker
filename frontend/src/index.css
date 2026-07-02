@@ -1,0 +1,356 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg:        #06080F;
+  --bg-2:      #0B0E1A;
+  --bg-3:      #0F1220;
+  --card:      #111827;
+  --card-2:    #161D2F;
+  --border:    #1E2A42;
+  --border-2:  #253250;
+  --blue:      #3B6FF5;
+  --blue-glow: rgba(59,111,245,.18);
+  --green:     #10B981;
+  --green-bg:  rgba(16,185,129,.12);
+  --amber:     #F59E0B;
+  --amber-bg:  rgba(245,158,11,.12);
+  --red:       #EF4444;
+  --red-bg:    rgba(239,68,68,.12);
+  --purple:    #8B5CF6;
+  --purple-bg: rgba(139,92,246,.12);
+  --text-1:    #F1F5F9;
+  --text-2:    #94A3B8;
+  --text-3:    #475569;
+  --badge-blue-text: #7AA7FF;
+  --font-head: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Tells the browser to render native controls (date picker icon, select
+     arrows, scrollbars in some browsers) using dark-mode-appropriate colors.
+     Without this, the calendar icon on <input type="date"> stays black and
+     becomes invisible against our dark background. */
+  color-scheme: dark;
+}
+
+/* Light theme overrides — applied when <html data-theme="light"> */
+:root[data-theme='light'] {
+  --bg:        #F4F6FB;
+  --bg-2:      #FFFFFF;
+  --bg-3:      #EEF1F8;
+  --card:      #FFFFFF;
+  --card-2:    #F3F5FA;
+  --border:    #E2E6F0;
+  --border-2:  #CBD2E3;
+  --blue:      #2F5EE0;
+  --blue-glow: rgba(47,94,224,.14);
+  --green:     #0E9F6E;
+  --green-bg:  rgba(14,159,110,.10);
+  --amber:     #D97706;
+  --amber-bg:  rgba(217,119,6,.10);
+  --red:       #DC2626;
+  --red-bg:    rgba(220,38,38,.10);
+  --purple:    #7C3AED;
+  --purple-bg: rgba(124,58,237,.10);
+  --text-1:    #0F172A;
+  --text-2:    #475569;
+  --text-3:    #8592AB;
+  --badge-blue-text: #2F5EE0;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  transition: background .2s, color .2s;
+}
+
+h1, h2, h3, h4 { font-family: var(--font-head); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-2); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+
+/* Glow utility */
+.glow-blue { box-shadow: 0 0 24px var(--blue-glow); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
+/* Input base */
+.input {
+  width: 100%;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.input::placeholder { color: var(--text-3); }
+.input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); }
+
+/* Select */
+select.input { cursor: pointer; }
+select.input option { background: var(--card); }
+
+/* Date input — the native calendar icon inherits color-scheme, but we also
+   force it visible explicitly since some Chromium versions are inconsistent. */
+input[type='date'].input {
+  color-scheme: inherit;
+}
+input[type='date'].input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 3px;
+  filter: var(--date-icon-filter, none);
+}
+:root[data-theme='light'] input[type='date'].input::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+:root:not([data-theme='light']) input[type='date'].input::-webkit-calendar-picker-indicator {
+  filter: invert(0.9) brightness(1.4);
+}
+
+/* Button */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .2s;
+  border: none;
+  outline: none;
+}
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+.btn-primary:hover { background: #2d5fe0; box-shadow: 0 0 18px var(--blue-glow); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--border-2); color: var(--text-1); background: var(--card); }
+.btn-danger {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 1px solid rgba(239,68,68,.2);
+}
+.btn-danger:hover { background: rgba(239,68,68,.2); }
+
+/* Card */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+}
+.card:hover { border-color: var(--border-2); }
+
+/* Badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.badge-green  { background: var(--green-bg);  color: var(--green);  }
+.badge-amber  { background: var(--amber-bg);  color: var(--amber);  }
+.badge-red    { background: var(--red-bg);    color: var(--red);    }
+.badge-blue   { background: var(--blue-glow); color: var(--badge-blue-text); }
+.badge-purple { background: var(--purple-bg); color: var(--purple); }
+
+/* Animate */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp .35s ease both; }
+
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; } 50% { opacity: .4; }
+}
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; min-width: 640px; }
+.data-table th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-3);
+}
+.data-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr {
+  cursor: pointer;
+  transition: background .15s;
+}
+.data-table tbody tr:hover td { background: var(--card-2); color: var(--text-1); }
+
+/* Table horizontal scroll on narrow screens instead of crushing columns */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Responsive app shell ─────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.main-content {
+  margin-left: 220px;
+  flex: 1;
+  min-width: 0;
+  padding: 36px 40px;
+}
+
+.mobile-topbar { display: none; }
+.sidebar-backdrop { display: none; }
+
+@media (max-width: 900px) {
+  .main-content {
+    margin-left: 0;
+    padding: 20px;
+  }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    margin: -20px -20px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+    position: sticky;
+    top: 0;
+    z-index: 90;
+  }
+
+  .sidebar-backdrop.open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 150;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content { padding: 16px; }
+  .mobile-topbar { margin: -16px -16px 16px; }
+}
+
+/* ── Sidebar (fixed on desktop, off-canvas drawer on mobile) ───────────── */
+.sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 200;
+  transition: transform .25s ease;
+}
+
+.sidebar-close-btn { display: none; }
+
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 0 0 40px rgba(0,0,0,.35);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-close-btn {
+    display: flex;
+  }
+}
+
+/* ── Responsive grids ────────────────────────────────────────────────── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid   { grid-template-columns: repeat(2, 1fr); }
+  .two-col-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .metrics-grid { grid-template-columns: 1fr; }
+  .stats-grid   { grid-template-columns: 1fr; }
+  .form-grid    { grid-template-columns: 1fr; }
+}
+
+/* Dashboard toolbar + search */
+.search-input { width: 220px; }
+@media (max-width: 560px) {
+  .dashboard-toolbar { flex-direction: column; align-items: stretch !important; }
+  .search-input { width: 100%; }
+}
+
+/* Client detail header card */
+.client-header-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+@media (max-width: 560px) {
+  .client-header-card { flex-direction: column; align-items: flex-start; }
+  .client-header-value { text-align: left !important; }
+}
